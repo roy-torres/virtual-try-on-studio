@@ -1,0 +1,11 @@
+# Secrets — API keys live in .env and never get committed
+.env
+.env.*
+!.env.example
+
+# Machine-local Claude Code files (permission grants, session logs with prompts/commands)
+.claude/settings.local.json
+.claude/logs/
+
+# macOS
+.DS_Store

@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Read",
+
+      "Bash(node server.js*)",
+      "Bash(node --check *)",
+      "Bash(lsof -i *)",
+
+      "Bash(curl http://127.0.0.1:8188/*)",
+      "Bash(curl http://localhost:8188/*)",
+      "Bash(curl http://127.0.0.1:5173/*)",
+      "Bash(curl http://localhost:5173/*)",
+
+      "Bash(ls *)",
+      "Bash(cat *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(grep *)",
+      "Bash(rg *)",
+      "Bash(find *)",
+      "Bash(wc *)",
+      "Bash(file *)",
+      "Bash(jq *)",
+      "Bash(pwd)",
+      "Bash(which *)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)"
+    ]
+  },
+
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/usr/bin/env",
+            "args": ["node", "${CLAUDE_PROJECT_DIR}/.claude/hooks/log-turn.js"],
+            "timeout": 15,
+            "statusMessage": "Logging turn to .claude/logs/session-log.md"
+          },
+          {
+            "type": "command",
+            "command": "/usr/bin/env",
+            "args": ["node", "${CLAUDE_PROJECT_DIR}/.claude/hooks/log-activity.js"],
+            "timeout": 15,
+            "statusMessage": "Appending turn to .claude/logs/activity.log"
+          }
+        ]
+      }
+    ]
+  }
+}

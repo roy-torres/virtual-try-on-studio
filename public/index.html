@@ -1,0 +1,1427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Virtual Try-On Studio</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E%F0%9F%91%95%3C/text%3E%3C/svg%3E" />
+<style>
+  /* ---------- tokens (light) ---------- */
+  :root {
+    --bg: #ffffff;
+    --surface: #fafafa;
+    --surface-2: #f4f4f5;
+    --ink: #17181c;
+    --muted: #6c7079;
+    --line: #e4e4e7;
+    --line-strong: #d2d2d7;
+    --accent: #2f66e8;
+    --accent-ink: #ffffff;
+    --accent-soft: rgba(47, 102, 232, 0.08);
+    --danger: #b42318;
+    --danger-soft: rgba(180, 35, 24, 0.07);
+    --ok: #2c8a4f;
+    --overlay: rgba(20, 21, 24, 0.72);
+    --overlay-ink: #ffffff;
+
+    --r-sm: 6px;
+    --r-md: 10px;
+    --r-lg: 14px;
+
+    --step: 24px;
+    --col: 900px;
+  }
+
+  /* ---------- tokens (dark) ---------- */
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1013;
+      --surface: #16171b;
+      --surface-2: #1c1e23;
+      --ink: #e9eaec;
+      --muted: #9ba1aa;
+      --line: #26282e;
+      --line-strong: #343740;
+      --accent: #7aa2ff;
+      --accent-ink: #10131a;
+      --accent-soft: rgba(122, 162, 255, 0.12);
+      --danger: #ff8b80;
+      --danger-soft: rgba(255, 139, 128, 0.10);
+      --ok: #58c07f;
+      --overlay: rgba(8, 9, 11, 0.72);
+      --overlay-ink: #f2f3f5;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    overflow-wrap: break-word;
+  }
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .wrap {
+    width: 100%;
+    max-width: var(--col);
+    margin: 0 auto;
+    padding: 0 clamp(16px, 4vw, 20px);
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    border: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* ---------- header ---------- */
+  .site-header {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    border-bottom: 1px solid var(--line);
+    background: var(--bg);
+  }
+  .header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 56px;
+  }
+  .wordmark {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--muted);
+    min-width: 0;
+  }
+  .status span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .dot {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--line-strong);
+  }
+  .dot.ok { background: var(--ok); }
+  .dot.bad { background: var(--danger); }
+
+  /* ---------- page rhythm ---------- */
+  main { padding-top: 56px; padding-bottom: 96px; }
+  .intro { margin-bottom: 48px; }
+  h1 {
+    font-size: clamp(22px, 3.4vw, 26px);
+    font-weight: 600;
+    letter-spacing: -0.015em;
+    margin: 0 0 6px;
+  }
+  .lede {
+    margin: 0;
+    color: var(--muted);
+    max-width: 46ch;
+  }
+
+  .field { margin-bottom: 40px; }
+  .field-head { margin-bottom: 12px; }
+  .field-head h2 {
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink);
+    margin: 0;
+  }
+  .field-head .sub {
+    margin: 2px 0 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--step);
+  }
+  .grid .field { margin-bottom: 40px; }
+
+  /* ---------- dropzone ---------- */
+  .drop {
+    position: relative;
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--r-lg);
+    background: var(--surface);
+    min-height: 260px;
+    overflow: hidden;
+    transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  }
+  .drop:hover { border-color: var(--muted); }
+  .drop:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .drop.dragover {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .drop.filled {
+    border-style: solid;
+    border-color: var(--line);
+    background: var(--surface-2);
+  }
+  .drop-label {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 6px;
+    padding: 24px;
+    cursor: pointer;
+  }
+  .drop.locked .drop-label { cursor: not-allowed; }
+  .drop .icon {
+    width: 22px;
+    height: 22px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+  .drop .prim { font-size: 14px; font-weight: 600; }
+  .drop .hint { font-size: 12px; color: var(--muted); }
+  .drop.filled .icon,
+  .drop.filled .prim,
+  .drop.filled .hint { display: none; }
+  .drop.filled .drop-label::after {
+    content: "Replace";
+    padding: 5px 10px;
+    border-radius: var(--r-sm);
+    background: var(--overlay);
+    color: var(--overlay-ink);
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  .drop.filled:hover .drop-label::after,
+  .drop.filled:focus-within .drop-label::after { opacity: 1; }
+  .drop.locked .drop-label::after { content: "Locked while generating"; }
+  .drop img.preview {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: var(--surface-2);
+  }
+  .drop .remove {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 2;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: none;
+    border-radius: var(--r-sm);
+    background: var(--overlay);
+    color: var(--overlay-ink);
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+    display: none;
+  }
+  .drop .remove:disabled { cursor: not-allowed; opacity: 0.5; }
+  .drop.filled .remove { display: block; }
+  .drop .filename {
+    position: absolute;
+    margin: 0;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    z-index: 2;
+    pointer-events: none;
+    padding: 5px 8px;
+    border-radius: var(--r-sm);
+    background: var(--overlay);
+    color: var(--overlay-ink);
+    font-size: 12px;
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums;
+    display: none;
+  }
+  .drop.filled .filename { display: block; }
+
+  /* ---------- prompt ---------- */
+  textarea {
+    width: 100%;
+    display: block;
+    border: 1px solid var(--line);
+    border-radius: var(--r-md);
+    padding: 12px 14px;
+    font: inherit;
+    background: var(--surface);
+    color: var(--ink);
+    min-height: 104px;
+    resize: vertical;
+  }
+  textarea::placeholder { color: var(--muted); }
+  textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+
+  /* ---------- options ---------- */
+  .options {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px var(--step);
+    margin-bottom: 32px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .opt {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .opt input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    margin: 0;
+    accent-color: var(--accent);
+  }
+  .opt label { cursor: pointer; }
+  .opt input:disabled + label { cursor: not-allowed; opacity: 0.65; }
+  .opt-hint { color: var(--muted); opacity: 0.8; }
+  input.seed {
+    width: 20ch;
+    font: inherit;
+    font-size: 13px;
+    padding: 7px 10px;
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    background: var(--surface);
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  input.seed:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  input.seed:disabled {
+    background: var(--surface-2);
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+
+  /* ---------- actions ---------- */
+  .actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    border-top: 1px solid var(--line);
+    padding: 24px 0 0;
+  }
+  button.btn {
+    font: inherit;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 10px 20px;
+    border-radius: var(--r-md);
+    border: 1px solid var(--line-strong);
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  }
+  button.btn:hover:not(:disabled) { background: var(--surface-2); }
+  button.btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-ink);
+  }
+  button.btn.primary:hover:not(:disabled) { opacity: 0.9; background: var(--accent); }
+  button.btn.quiet {
+    font-size: 13px;
+    font-weight: 600;
+    padding: 7px 14px;
+  }
+  button.btn:disabled {
+    cursor: not-allowed;
+    background: var(--surface-2);
+    border-color: var(--line);
+    color: var(--muted);
+    opacity: 1;
+  }
+  .help {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+    flex: 1 1 auto;
+    text-align: right;
+  }
+
+  /* ---------- output ---------- */
+  .output {
+    display: none;
+    scroll-margin-top: 72px;
+    margin-top: 56px;
+    padding-top: 40px;
+    border-top: 1px solid var(--line);
+  }
+  .output.show { display: block; }
+  .stage {
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    background: var(--surface);
+    padding: 24px;
+    min-height: 140px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 24px;
+  }
+
+  /* run panel */
+  .run {
+    width: 100%;
+    max-width: 460px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    font-variant-numeric: tabular-nums;
+  }
+  .bar {
+    width: 100%;
+    height: 4px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+  .bar > i {
+    display: block;
+    height: 100%;
+    width: 0%;
+    background: var(--accent);
+    border-radius: 999px;
+    transition: width 0.25s ease;
+  }
+  .bar.indeterminate > i {
+    width: 40%;
+    animation: slide 1.1s ease-in-out infinite;
+  }
+  @keyframes slide {
+    0% { margin-left: -40%; }
+    100% { margin-left: 100%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .bar.indeterminate > i { animation: none; width: 100%; opacity: 0.5; }
+  }
+  .run-phase {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 600;
+    text-align: center;
+  }
+  .run-meta {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    width: 100%;
+    margin: 0;
+    padding: 14px 0;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    text-align: center;
+  }
+  .run-meta dt {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .run-meta dd {
+    margin: 2px 0 0;
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .run-note {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--muted);
+    text-align: center;
+    min-height: 1.5em;
+  }
+
+  /* error / notice */
+  .err {
+    width: 100%;
+    margin: 0;
+    color: var(--danger);
+    background: var(--danger-soft);
+    border: 1px solid var(--danger);
+    border-radius: var(--r-md);
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.45;
+    text-align: left;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    max-height: 320px;
+    overflow: auto;
+  }
+  .err.notice {
+    color: var(--muted);
+    background: var(--surface-2);
+    border-color: var(--line);
+  }
+
+  /* result */
+  .result-figure {
+    margin: 0;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    transition: opacity 0.2s ease;
+  }
+  .result-figure.stale { opacity: 0.45; }
+  .result-figure img.result {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+  }
+  .result-meta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 12px 16px;
+    font-size: 13px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .dl {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    text-decoration: none;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--r-md);
+    padding: 9px 16px;
+  }
+  .dl:hover { background: var(--surface-2); }
+
+  /* hidden panels — attribute selector out-specifies the display rules above */
+  .run[hidden],
+  .err[hidden],
+  .result-figure[hidden] { display: none; }
+
+  /* ---------- narrow ---------- */
+  @media (max-width: 720px) {
+    body { font-size: 14px; }
+    main { padding-top: 40px; padding-bottom: 72px; }
+    .intro { margin-bottom: 36px; }
+    .grid { gap: 0; }
+    .drop { min-height: 220px; }
+    .help { text-align: left; flex-basis: 100%; }
+    .stage { padding: 18px; }
+  }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <div class="wrap header-inner">
+    <div class="wordmark">Virtual Try-On</div>
+    <span id="comfyStatus" class="status" role="status" aria-live="polite"><span class="dot" id="statusDot"></span><span id="statusText">Checking ComfyUI…</span></span>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="intro">
+    <h1>Virtual Try-On Studio</h1>
+    <p class="lede">Upload a person and a piece of clothing, describe the edit you want, then generate the try-on.</p>
+  </div>
+
+  <div class="grid">
+    <!-- SUBJECT -->
+    <section class="field" aria-labelledby="subjectHeading">
+      <div class="field-head">
+        <h2 id="subjectHeading">Subject</h2>
+        <p class="sub">A person or model</p>
+      </div>
+      <div class="drop" id="dropSubject" data-slot="subject">
+        <input class="sr-only" type="file" id="fileSubject" accept="image/png,image/jpeg,image/webp" />
+        <label class="drop-label" for="fileSubject">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="m6 10 6-6 6 6"/><path d="M4 20h16"/></svg>
+          <span class="prim">Click to upload or drag &amp; drop</span>
+          <span class="hint">PNG, JPG, WebP</span>
+          <span class="sr-only">Subject image</span>
+        </label>
+        <button class="remove" type="button" aria-label="Remove subject image">&times;</button>
+        <p class="filename" id="fileNameSubject"></p>
+      </div>
+    </section>
+
+    <!-- ATTRIBUTE -->
+    <section class="field" aria-labelledby="attributeHeading">
+      <div class="field-head">
+        <h2 id="attributeHeading">Attribute</h2>
+        <p class="sub">Clothing or an accessory</p>
+      </div>
+      <div class="drop" id="dropAttribute" data-slot="attribute">
+        <input class="sr-only" type="file" id="fileAttribute" accept="image/png,image/jpeg,image/webp" />
+        <label class="drop-label" for="fileAttribute">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4"/><path d="m6 10 6-6 6 6"/><path d="M4 20h16"/></svg>
+          <span class="prim">Click to upload or drag &amp; drop</span>
+          <span class="hint">PNG, JPG, WebP</span>
+          <span class="sr-only">Attribute image</span>
+        </label>
+        <button class="remove" type="button" aria-label="Remove attribute image">&times;</button>
+        <p class="filename" id="fileNameAttribute"></p>
+      </div>
+    </section>
+  </div>
+
+  <!-- PROMPT -->
+  <section class="field">
+    <div class="field-head">
+      <h2><label for="prompt">Prompt</label></h2>
+      <p class="sub">Describe how the subject and the attribute should be combined</p>
+    </div>
+    <textarea id="prompt" placeholder="e.g. Put the jacket from image 2 onto the person in image 1, keeping their pose and the background unchanged.">Dress the person in image 1 with the clothing from image 2. Keep the person's face, pose, body and background unchanged. Make the garment fit naturally with realistic folds, shadows and lighting.</textarea>
+  </section>
+
+  <div class="options">
+    <div class="opt">
+      <input type="checkbox" id="lockSeed" />
+      <label for="lockSeed">Lock seed</label>
+      <input type="number" class="seed" id="seedInput" min="0" max="9000000000000000" step="1" placeholder="random" aria-label="Seed" disabled />
+    </div>
+    <div class="opt">
+      <input type="checkbox" id="downscale" checked />
+      <label for="downscale">Downscale large uploads <span class="opt-hint">— the workflow scales inputs to 1&nbsp;MP anyway</span></label>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn primary" id="generateBtn" type="button" disabled>Generate</button>
+    <button class="btn" id="resetBtn" type="button">Reset</button>
+    <p class="help" id="help" role="status" aria-live="polite">Upload both images to enable Generate.</p>
+  </div>
+
+  <!-- OUTPUT -->
+  <section class="output" id="output" aria-labelledby="resultHeading">
+    <div class="field-head">
+      <h2 id="resultHeading">Result</h2>
+      <p class="sub">CPU runs take around 11 minutes — leave this tab open.</p>
+    </div>
+    <div class="stage" id="stage">
+      <div class="run" id="runPanel" hidden>
+        <div class="bar indeterminate" id="runBar"><i id="runFill"></i></div>
+        <p class="run-phase" id="runPhase" role="status" aria-live="polite">Preparing…</p>
+        <dl class="run-meta">
+          <div>
+            <dt>Elapsed</dt>
+            <dd id="runElapsed">0:00</dd>
+          </div>
+          <div>
+            <dt>Step</dt>
+            <dd id="runStep">—</dd>
+          </div>
+          <div>
+            <dt>Seed</dt>
+            <dd id="runSeed">—</dd>
+          </div>
+        </dl>
+        <p class="run-note" id="runNote"></p>
+        <button class="btn quiet" id="stopBtn" type="button" disabled>Stop run</button>
+      </div>
+
+      <p class="err" id="errBox" hidden></p>
+
+      <figure class="result-figure" id="resultFigure" hidden>
+        <img class="result" id="resultImg" alt="Generated try-on result" />
+        <figcaption class="result-meta">
+          <span id="resultCaption"></span>
+          <a class="dl" id="downloadLink" href="#" download>Download image</a>
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+</main>
+
+<script>
+const COMFY = "/comfy";
+const clientId = (crypto.randomUUID && crypto.randomUUID()) ||
+  (Date.now() + "-" + Math.random().toString(16).slice(2));
+
+const slots = {
+  subject: { file: null, dims: null, uploadedName: null, uploadKey: null, node: "76" },
+  attribute: { file: null, dims: null, uploadedName: null, uploadKey: null, node: "81" },
+};
+const PROMPT_NODE = "92:109";
+const SEED_NODE = "92:106";
+const SAVE_NODE = "94";
+
+// The workflow pipes both LoadImage nodes through ImageScaleToTotalPixels
+// (megapixels: 1), so anything much larger than ~1 MP is uploaded and decoded
+// only to be thrown away. Resize above the threshold, but stay comfortably
+// above 1 MP so ComfyUI still does the final scale itself.
+const RESIZE_ABOVE_PIXELS = 2_200_000;
+const RESIZE_TARGET_PIXELS = 1_600_000;
+
+/* ---------- DOM ---------- */
+const $ = (id) => document.getElementById(id);
+const el = {
+  statusDot: $("statusDot"), statusText: $("statusText"),
+  generateBtn: $("generateBtn"), resetBtn: $("resetBtn"), stopBtn: $("stopBtn"),
+  help: $("help"), prompt: $("prompt"),
+  lockSeed: $("lockSeed"), seedInput: $("seedInput"), downscale: $("downscale"),
+  output: $("output"), stage: $("stage"),
+  runPanel: $("runPanel"), runBar: $("runBar"), runFill: $("runFill"),
+  runPhase: $("runPhase"), runElapsed: $("runElapsed"), runStep: $("runStep"),
+  runSeed: $("runSeed"), runNote: $("runNote"),
+  errBox: $("errBox"),
+  figure: $("resultFigure"), resultImg: $("resultImg"),
+  resultCaption: $("resultCaption"), downloadLink: $("downloadLink"),
+};
+const dropEl = (slot) => $("drop" + cap(slot));
+const cap = (s) => s[0].toUpperCase() + s.slice(1);
+const setText = (node, value) => { if (node.textContent !== value) node.textContent = value; };
+
+let busy = false;
+let comfyOnline = null; // null = not checked yet
+let hasResult = false;
+let lastCaption = "";
+
+/* ---------- Workflow template (prefetched at load) ---------- */
+let workflowTemplate = null;
+let workflowPromise = null;
+function loadWorkflow() {
+  if (!workflowPromise) {
+    workflowPromise = fetch("/workflow.api.json")
+      .then((r) => {
+        if (!r.ok) throw new Error("Could not load workflow.api.json (HTTP " + r.status + ")");
+        return r.json();
+      })
+      .then((json) => { workflowTemplate = json; return json; })
+      .catch((err) => { workflowPromise = null; throw err; });
+  }
+  return workflowPromise;
+}
+loadWorkflow().catch(() => { /* retried, and surfaced, on Generate */ });
+
+/* ---------- ComfyUI status ---------- */
+async function checkComfy() {
+  try {
+    const r = await fetch(COMFY + "/system_stats", { cache: "no-store" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    comfyOnline = true;
+    el.statusDot.className = "dot ok";
+    setText(el.statusText, "ComfyUI " + ((j.system && j.system.comfyui_version) || "connected"));
+    connectWs();
+  } catch {
+    comfyOnline = false;
+    el.statusDot.className = "dot bad";
+    setText(el.statusText, "ComfyUI offline");
+  }
+  refresh();
+}
+checkComfy();
+setInterval(checkComfy, 15000);
+
+/* ---------- Websocket progress (opened early, kept alive) ---------- */
+let ws = null;
+let wsOpen = false;
+let wsBackoff = 1000;
+let wsReconnectTimer = null;
+
+function connectWs() {
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  let sock;
+  try {
+    sock = new WebSocket(proto + "://" + location.host + "/comfy/ws?clientId=" + encodeURIComponent(clientId));
+  } catch {
+    scheduleWsReconnect();
+    return;
+  }
+  ws = sock;
+  sock.onopen = () => { wsOpen = true; wsBackoff = 1000; renderRun(); };
+  sock.onmessage = onWsMessage;
+  sock.onerror = () => { /* a close event always follows */ };
+  sock.onclose = () => {
+    if (ws !== sock) return;
+    ws = null;
+    wsOpen = false;
+    renderRun();
+    scheduleWsReconnect();
+  };
+}
+
+function scheduleWsReconnect() {
+  if (wsReconnectTimer) return;
+  const delay = wsBackoff;
+  wsBackoff = Math.min(wsBackoff * 2, 15000);
+  wsReconnectTimer = setTimeout(() => { wsReconnectTimer = null; connectWs(); }, delay);
+}
+connectWs();
+
+const NODE_PHASE = {
+  UNETLoader: "Loading the diffusion model",
+  UnetLoaderGGUF: "Loading the diffusion model",
+  CLIPLoader: "Loading the text encoder",
+  VAELoader: "Loading the VAE",
+  LoadImage: "Reading the input images",
+  ImageScaleToTotalPixels: "Scaling the input images",
+  GetImageSize: "Measuring the input images",
+  VAEEncode: "Encoding the input images",
+  CLIPTextEncode: "Encoding the prompt",
+  ConditioningZeroOut: "Preparing conditioning",
+  ReferenceLatent: "Preparing conditioning",
+  EmptyFlux2LatentImage: "Preparing the canvas",
+  Flux2Scheduler: "Preparing the sampler",
+  KSamplerSelect: "Preparing the sampler",
+  CFGGuider: "Preparing the sampler",
+  RandomNoise: "Preparing the sampler",
+  SamplerCustomAdvanced: "Sampling",
+  VAEDecode: "Decoding the image",
+  SaveImage: "Saving the image",
+};
+function phaseForNode(nodeId) {
+  const node = workflowTemplate && workflowTemplate[nodeId];
+  return (node && NODE_PHASE[node.class_type]) || "Running the model";
+}
+
+function onWsMessage(ev) {
+  if (typeof ev.data !== "string") return; // ignore binary previews
+  let msg;
+  try { msg = JSON.parse(ev.data); } catch { return; }
+  const d = msg.data || {};
+  if (!run.active) return;
+  if (d.prompt_id && run.promptId && d.prompt_id !== run.promptId) return;
+
+  switch (msg.type) {
+    case "execution_start":
+      setPhase("Running the workflow…");
+      break;
+    case "executing":
+      if (d.node) setPhase(phaseForNode(d.node));
+      break;
+    case "progress":
+      if (d.max) {
+        // Time the steps themselves: loading fp8 weights dominates the first
+        // minutes, so pacing from the start of the run would lie.
+        if (!run.firstStep) run.firstStep = { step: d.value, at: Date.now() };
+        run.step = d.value;
+        run.maxStep = d.max;
+        if (d.node) run.phase = phaseForNode(d.node);
+      }
+      break;
+    case "executed":
+      if (d.node === SAVE_NODE) setPhase("Fetching the finished image…");
+      break;
+    case "execution_error":
+      run.wsError = d.exception_message || "ComfyUI reported an execution error.";
+      break;
+    case "execution_interrupted":
+      run.cancelled = true;
+      break;
+    case "status": {
+      const info = d.status && d.status.exec_info;
+      if (info && typeof info.queue_remaining === "number") run.queueRemaining = info.queue_remaining;
+      break;
+    }
+    default:
+      break;
+  }
+  run.lastAliveAt = Date.now();
+  renderRun();
+}
+
+/* ---------- Dropzones ---------- */
+function wireDrop(node) {
+  const slot = node.dataset.slot;
+  const input = node.querySelector("input[type=file]");
+  const removeBtn = node.querySelector(".remove");
+
+  // The <label for> handles click + keyboard activation natively.
+  input.addEventListener("change", () => {
+    if (input.files[0]) setFile(slot, input.files[0]);
+  });
+  ["dragenter", "dragover"].forEach((ev) =>
+    node.addEventListener(ev, (e) => {
+      e.preventDefault();
+      if (!busy) node.classList.add("dragover");
+    })
+  );
+  ["dragleave", "drop"].forEach((ev) =>
+    node.addEventListener(ev, (e) => {
+      e.preventDefault();
+      node.classList.remove("dragover");
+    })
+  );
+  node.addEventListener("drop", (e) => {
+    if (busy) return;
+    const file = [...(e.dataTransfer.files || [])].find((f) => f.type.startsWith("image/"));
+    if (!file) return;
+    try {
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+    } catch { /* keeping the input in sync is best-effort */ }
+    setFile(slot, file);
+  });
+  removeBtn.addEventListener("click", () => clearFile(slot));
+}
+["dropSubject", "dropAttribute"].forEach((id) => wireDrop($(id)));
+
+function setFile(slot, file) {
+  const s = slots[slot];
+  s.file = file;
+  s.dims = null;
+  s.uploadedName = null;
+  s.uploadKey = null;
+
+  const node = dropEl(slot);
+  let img = node.querySelector("img.preview");
+  if (!img) {
+    img = document.createElement("img");
+    img.className = "preview";
+    node.insertBefore(img, node.firstChild);
+  }
+  if (img.dataset.objectUrl) URL.revokeObjectURL(img.dataset.objectUrl);
+  const url = URL.createObjectURL(file);
+  img.dataset.objectUrl = url;
+  img.alt = "Selected " + slot + " image: " + file.name;
+  img.onload = () => {
+    s.dims = { w: img.naturalWidth, h: img.naturalHeight };
+    updateCaption(slot);
+  };
+  img.src = url;
+
+  node.classList.add("filled");
+  updateCaption(slot);
+  refresh();
+}
+
+function clearFile(slot) {
+  const s = slots[slot];
+  s.file = null;
+  s.dims = null;
+  s.uploadedName = null;
+  s.uploadKey = null;
+  const node = dropEl(slot);
+  const img = node.querySelector("img.preview");
+  if (img) {
+    if (img.dataset.objectUrl) URL.revokeObjectURL(img.dataset.objectUrl);
+    img.remove();
+  }
+  node.querySelector("input[type=file]").value = "";
+  node.classList.remove("filled");
+  updateCaption(slot);
+  refresh();
+}
+
+function updateCaption(slot) {
+  const s = slots[slot];
+  const node = $("fileName" + cap(slot));
+  if (!s.file) { setText(node, ""); return; }
+  let text = s.file.name;
+  if (s.dims) {
+    text += " · " + s.dims.w + "×" + s.dims.h;
+    const plan = resizePlan(s.dims.w, s.dims.h);
+    if (plan) text += " → " + plan.w + "×" + plan.h;
+  }
+  setText(node, text);
+}
+
+function resizePlan(w, h) {
+  if (!el.downscale.checked) return null;
+  const pixels = w * h;
+  if (!pixels || pixels <= RESIZE_ABOVE_PIXELS) return null;
+  const scale = Math.sqrt(RESIZE_TARGET_PIXELS / pixels);
+  return { w: Math.max(1, Math.round(w * scale)), h: Math.max(1, Math.round(h * scale)) };
+}
+
+el.downscale.addEventListener("change", () => {
+  updateCaption("subject");
+  updateCaption("attribute");
+});
+el.lockSeed.addEventListener("change", refresh);
+
+/* ---------- Enabled state + help copy ---------- */
+function refresh() {
+  const hasFiles = Boolean(slots.subject.file && slots.attribute.file);
+  el.generateBtn.disabled = !(hasFiles && !busy && comfyOnline !== false);
+  el.resetBtn.disabled = busy;
+  el.lockSeed.disabled = busy;
+  el.downscale.disabled = busy;
+  el.seedInput.disabled = busy || !el.lockSeed.checked;
+  for (const slot of Object.keys(slots)) {
+    const node = dropEl(slot);
+    node.classList.toggle("locked", busy);
+    node.querySelector("input[type=file]").disabled = busy;
+    node.querySelector(".remove").disabled = busy;
+  }
+  setText(el.help, helpText(hasFiles));
+}
+
+function helpText(hasFiles) {
+  if (busy) return "Generating — inputs are locked until this run finishes. Use “Stop run” to cancel.";
+  if (comfyOnline === false) return "ComfyUI is offline, so Generate is disabled. Start ComfyUI, then try again.";
+  if (!hasFiles) return "Upload both images to enable Generate.";
+  if (hasResult) return "Ready. Generate again for a new take — same files, new seed.";
+  return "Ready. Click Generate.";
+}
+refresh();
+
+/* ---------- Reset ---------- */
+el.resetBtn.addEventListener("click", () => {
+  if (busy) return;
+  clearFile("subject");
+  clearFile("attribute");
+  el.output.classList.remove("show");
+  el.figure.hidden = true;
+  el.errBox.hidden = true;
+  el.runPanel.hidden = true;
+  hasResult = false;
+  el.generateBtn.textContent = "Generate";
+  refresh();
+});
+
+/* ---------- Run state ---------- */
+const run = {
+  active: false, promptId: null, seed: null,
+  phase: "Preparing…", step: null, maxStep: null,
+  startedAt: 0, lastAliveAt: 0, queuePosition: 0, queueRemaining: null, firstStep: null,
+  cancelled: false, wsError: null,
+};
+let ticker = null;
+
+function setPhase(text) {
+  run.phase = text;
+  renderRun();
+}
+
+function renderRun() {
+  if (!run.active) return;
+  setText(el.runPhase, run.phase);
+  const determinate = run.maxStep > 0;
+  el.runBar.classList.toggle("indeterminate", !determinate);
+  el.runFill.style.width = determinate
+    ? Math.min(100, Math.round((run.step / run.maxStep) * 100)) + "%"
+    : "";
+  setText(el.runStep, determinate ? run.step + " / " + run.maxStep : "—");
+  setText(el.runSeed, run.seed == null ? "—" : String(run.seed));
+  setText(el.runElapsed, formatDuration(Date.now() - run.startedAt));
+  setText(el.runNote, noteText());
+}
+
+function noteText() {
+  const parts = [];
+  if (!wsOpen) parts.push("Live progress feed is disconnected — still polling ComfyUI for the result.");
+  if (run.queuePosition > 0) {
+    parts.push("Waiting in ComfyUI's queue, position " + run.queuePosition + ".");
+  } else if (run.lastAliveAt) {
+    parts.push("Confirmed alive in ComfyUI " + formatDuration(Date.now() - run.lastAliveAt) + " ago.");
+  }
+  const done = run.firstStep ? run.step - run.firstStep.step : 0;
+  if (done > 0 && run.step < run.maxStep) {
+    const perStep = (Date.now() - run.firstStep.at) / done;
+    parts.push("Roughly " + formatDuration(perStep * (run.maxStep - run.step)) + " left in the sampler at this pace.");
+  }
+  return parts.join(" ");
+}
+
+function startTicker() {
+  stopTicker();
+  ticker = setInterval(renderRun, 1000);
+}
+function stopTicker() {
+  if (ticker) clearInterval(ticker);
+  ticker = null;
+}
+
+/* ---------- Generate ---------- */
+el.generateBtn.addEventListener("click", start);
+
+async function start() {
+  if (busy) return;
+  busy = true;
+
+  run.active = true;
+  run.promptId = null;
+  run.seed = null;
+  run.phase = "Preparing…";
+  run.step = null;
+  run.maxStep = null;
+  run.startedAt = Date.now();
+  run.lastAliveAt = 0;
+  run.queuePosition = 0;
+  run.queueRemaining = null;
+  run.firstStep = null;
+  run.cancelled = false;
+  run.wsError = null;
+
+  el.output.classList.add("show");
+  el.errBox.hidden = true;
+  if (!el.figure.hidden) {
+    // Keep the previous result on screen while the next one renders, but say so.
+    el.figure.classList.add("stale");
+    setText(el.resultCaption, "Previous result  ·  " + lastCaption);
+  }
+  el.runPanel.hidden = false;
+  el.stopBtn.disabled = true;
+  el.runFill.style.width = "";
+  renderRun();
+  startTicker();
+  refresh();
+  el.output.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  try {
+    connectWs();
+    setPhase("Loading the workflow…");
+    const template = await loadWorkflow();
+
+    setPhase("Uploading the images…");
+    const [subjectName, attributeName] = await Promise.all([
+      ensureUploaded("subject"),
+      ensureUploaded("attribute"),
+    ]);
+
+    const wf = typeof structuredClone === "function"
+      ? structuredClone(template)
+      : JSON.parse(JSON.stringify(template));
+    wf[slots.subject.node].inputs.image = subjectName;
+    wf[slots.attribute.node].inputs.image = attributeName;
+    wf[PROMPT_NODE].inputs.text =
+      el.prompt.value.trim() || "Combine image 1 and image 2 into a realistic try-on.";
+    const seed = chooseSeed();
+    wf[SEED_NODE].inputs.noise_seed = seed;
+    run.seed = seed;
+    el.seedInput.value = String(seed);
+
+    setPhase("Queueing…");
+    const res = await fetch(COMFY + "/prompt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt: wf, client_id: clientId }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error("ComfyUI rejected the workflow (HTTP " + res.status + "):\n" + body);
+    }
+    const data = await res.json();
+    if (!data.prompt_id) throw new Error("ComfyUI did not return a prompt id:\n" + JSON.stringify(data));
+    run.promptId = data.prompt_id;
+    run.lastAliveAt = Date.now();
+    el.stopBtn.disabled = false;
+    setPhase("Queued in ComfyUI…");
+
+    await waitForResult(data.prompt_id);
+  } catch (err) {
+    if (run.cancelled) showNotice("Run stopped after " + formatDuration(Date.now() - run.startedAt) + ".");
+    else showError(err);
+  } finally {
+    run.active = false;
+    busy = false;
+    stopTicker();
+    el.runPanel.hidden = true;
+    el.stopBtn.disabled = true;
+    refresh();
+  }
+}
+
+function chooseSeed() {
+  if (el.lockSeed.checked) {
+    const value = Number(el.seedInput.value);
+    if (Number.isFinite(value) && value >= 0) return Math.floor(value);
+  }
+  return Math.floor(Math.random() * 9e15);
+}
+
+/* ---------- Stop ---------- */
+el.stopBtn.addEventListener("click", async () => {
+  if (!run.active || run.cancelled) return;
+  run.cancelled = true;
+  el.stopBtn.disabled = true;
+  setPhase("Stopping…");
+  const body = JSON.stringify({ client_id: clientId });
+  try {
+    await fetch(COMFY + "/interrupt", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body,
+    });
+  } catch { /* the wait loop notices the job leaving the queue anyway */ }
+  if (run.promptId) {
+    try {
+      await fetch(COMFY + "/queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ delete: [run.promptId] }),
+      });
+    } catch { /* pending-queue removal is best-effort */ }
+  }
+});
+
+/* ---------- Upload (cached per file) ---------- */
+function uploadKeyFor(file) {
+  return [file.name, file.size, file.lastModified, el.downscale.checked ? "small" : "orig"].join("|");
+}
+
+async function ensureUploaded(slot) {
+  const s = slots[slot];
+  const key = uploadKeyFor(s.file);
+  if (s.uploadedName && s.uploadKey === key) return s.uploadedName; // already on the server
+  const prepared = await prepareUpload(s.file, slot);
+  const name = await uploadImage(prepared.blob, prepared.name);
+  s.uploadedName = name;
+  s.uploadKey = key;
+  return name;
+}
+
+async function uploadImage(blob, name) {
+  const fd = new FormData();
+  fd.append("image", blob, name);
+  fd.append("overwrite", "true");
+  const r = await fetch(COMFY + "/upload/image", { method: "POST", body: fd });
+  if (!r.ok) throw new Error("Image upload failed (HTTP " + r.status + "): " + (await r.text()));
+  const j = await r.json();
+  return j.subfolder ? j.subfolder + "/" + j.name : j.name;
+}
+
+const EXTENSIONS = { "image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp" };
+
+function uploadName(slot, file, mime) {
+  const base = (file.name || "image").replace(/\.[^.]+$/, "").replace(/[^a-zA-Z0-9_-]+/g, "_").slice(0, 48);
+  return "tryon-" + slot + "-" + (base || "image") + (EXTENSIONS[mime] || ".png");
+}
+
+async function prepareUpload(file, slot) {
+  const fallback = { blob: file, name: uploadName(slot, file, file.type) };
+  if (!el.downscale.checked) return fallback;
+  let bitmap = null;
+  try {
+    bitmap = await decodeImage(file);
+    const w = bitmap.width || bitmap.naturalWidth;
+    const h = bitmap.height || bitmap.naturalHeight;
+    const plan = resizePlan(w, h);
+    if (!plan) return fallback;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = plan.w;
+    canvas.height = plan.h;
+    const ctx = canvas.getContext("2d");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(bitmap, 0, 0, plan.w, plan.h);
+
+    // WebP keeps the alpha channel that PNG sources may rely on; JPEG is
+    // smaller for photos. The browser falls back to PNG if it cannot encode.
+    const wanted = file.type === "image/png" ? "image/webp" : "image/jpeg";
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, wanted, 0.92));
+    if (!blob || blob.size >= file.size) return fallback; // never upload more bytes
+    return { blob, name: uploadName(slot, file, blob.type || wanted) };
+  } catch {
+    return fallback; // resizing is an optimisation, never a failure mode
+  } finally {
+    if (bitmap && typeof bitmap.close === "function") bitmap.close();
+  }
+}
+
+async function decodeImage(file) {
+  if (typeof createImageBitmap === "function") {
+    try { return await createImageBitmap(file); } catch { /* fall through */ }
+  }
+  return await new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("Could not read " + file.name)); };
+    img.src = url;
+  });
+}
+
+/* ---------- Poll history for the final image ---------- */
+async function queueState(promptId) {
+  // Reports whether ComfyUI still has this prompt running or pending — CPU-mode
+  // runs can take far longer than any fixed timeout, so we wait as long as the
+  // job is actually alive.
+  try {
+    const q = await (await fetch(COMFY + "/queue", { cache: "no-store" })).json();
+    if ((q.queue_running || []).some((r) => r && r[1] === promptId)) {
+      return { alive: true, position: 0 };
+    }
+    const index = (q.queue_pending || []).findIndex((r) => r && r[1] === promptId);
+    if (index >= 0) return { alive: true, position: index + 1 };
+    return { alive: false, position: 0 };
+  } catch {
+    return { alive: false, position: 0 };
+  }
+}
+
+async function waitForResult(promptId) {
+  const HARD_CAP_MS = 2 * 60 * 60 * 1000; // absolute safety stop: 2h
+  const IDLE_GRACE_MS = 90 * 1000; // tolerate this long with no queue + no history
+  const started = Date.now();
+  let lastAlive = Date.now();
+
+  while (Date.now() - started < HARD_CAP_MS) {
+    // Poll briskly at first, then back off: a couple of seconds of latency is
+    // nothing against an 11-minute run, and it leaves the CPU to ComfyUI.
+    await sleep(Date.now() - started < 30000 ? 1500 : 3000);
+
+    if (run.wsError) throw new Error(run.wsError);
+
+    let hist = null;
+    try {
+      hist = await (await fetch(COMFY + "/history/" + promptId, { cache: "no-store" })).json();
+    } catch { /* transient — fall through to liveness check */ }
+
+    const entry = hist && hist[promptId];
+    if (entry) {
+      const status = entry.status || {};
+      if (status.status_str === "error") throw new Error(collectError(entry));
+      const outputs = entry.outputs || {};
+      const node = outputs[SAVE_NODE] || Object.values(outputs).find((o) => o.images);
+      if (node && node.images && node.images.length) {
+        showResult(node.images[0]);
+        return;
+      }
+      if (status.completed) throw new Error("ComfyUI finished but produced no image.");
+      lastAlive = Date.now();
+      run.lastAliveAt = lastAlive;
+      run.queuePosition = 0;
+      renderRun();
+      continue;
+    }
+
+    // Not in history yet — keep waiting while the job is still queued/running.
+    const queue = await queueState(promptId);
+    if (queue.alive) {
+      lastAlive = Date.now();
+      run.lastAliveAt = lastAlive;
+      run.queuePosition = queue.position;
+      renderRun();
+      continue;
+    }
+    if (run.cancelled) throw new Error("Run stopped.");
+    run.queuePosition = 0;
+    // Neither in history nor in the queue. Allow a short grace window for the
+    // gap between "left the queue" and "written to history"; then give up.
+    if (Date.now() - lastAlive > IDLE_GRACE_MS) {
+      throw new Error("ComfyUI is no longer processing this job and no image was produced.");
+    }
+    renderRun();
+  }
+  throw new Error("Timed out waiting for ComfyUI (2h cap).");
+}
+
+/* ---------- Output ---------- */
+function showResult(imgInfo) {
+  const params = new URLSearchParams({
+    filename: imgInfo.filename,
+    subfolder: imgInfo.subfolder || "",
+    type: imgInfo.type || "output",
+  });
+  const url = COMFY + "/view?" + params.toString();
+  el.resultImg.src = url;
+  el.resultImg.alt = "Generated try-on result for the prompt: " + (el.prompt.value.trim() || "untitled");
+  el.downloadLink.href = url;
+  el.downloadLink.download = imgInfo.filename;
+  lastCaption = [
+    "Seed " + run.seed,
+    formatDuration(Date.now() - run.startedAt),
+    imgInfo.filename,
+  ].join("  ·  ");
+  setText(el.resultCaption, lastCaption);
+  el.figure.classList.remove("stale");
+  el.figure.hidden = false;
+  el.errBox.hidden = true;
+  hasResult = true;
+  el.generateBtn.textContent = "Generate again";
+}
+
+function showError(err) {
+  el.errBox.className = "err";
+  setText(el.errBox, (err && err.message) || String(err));
+  el.errBox.hidden = false;
+}
+
+function showNotice(text) {
+  el.errBox.className = "err notice";
+  setText(el.errBox, text);
+  el.errBox.hidden = false;
+}
+
+/* ---------- helpers ---------- */
+function collectError(entry) {
+  try {
+    const messages = (entry.status.messages || [])
+      .filter((m) => m[0] === "execution_error")
+      .map((m) => m[1].exception_message)
+      .join("\n");
+    return messages || "ComfyUI reported an execution error.";
+  } catch {
+    return "ComfyUI reported an execution error.";
+  }
+}
+
+function formatDuration(ms) {
+  const total = Math.max(0, Math.round(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  const pad = (n) => String(n).padStart(2, "0");
+  return h ? h + ":" + pad(m) + ":" + pad(s) : m + ":" + pad(s);
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+</script>
+</body>
+</html>

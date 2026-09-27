@@ -1,0 +1,3 @@
+- [Upload downscale decision](frontend-upload-downscale-decision.md) — why uploads are resized to ~1.6 MP by default; workflow already forces 1 MP
+- [Run UI contract](frontend-run-ui-contract.md) — run-panel states, upload cache keys, ws lifecycle invariants not to break
+- [Testing without a browser](frontend-testing-without-a-browser.md) — stub-DOM harness for actually executing index.html's JS
