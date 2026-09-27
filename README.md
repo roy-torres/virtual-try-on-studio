@@ -27,6 +27,37 @@ Then open <http://localhost:5173>.
 | `PORT`       | `5173`      | port the frontend listens on |
 | `COMFY_HOST` | `127.0.0.1` | ComfyUI host               |
 | `COMFY_PORT` | `8188`      | ComfyUI port               |
+| `DEMO_PASSWORD` | _(unset)_ | turns on demo mode (see below) |
+| `DEMO_MAX_QUEUE` | `2`      | demo mode: max jobs running + pending |
+
+## Public demo (password-protected)
+
+To share the app over a temporary public URL:
+
+```bash
+cp .env.example .env            # then set a real DEMO_PASSWORD in .env
+node --env-file-if-exists=.env server.js
+cloudflared tunnel --url http://localhost:5173   # brew install cloudflared
+```
+
+cloudflared prints an `https://….trycloudflare.com` link. Visitors log in with
+the password (any username). The link lasts only while your Mac, ComfyUI,
+the server, and the tunnel are running, and it changes on every restart.
+
+With `DEMO_PASSWORD` set, the server:
+
+- requires HTTP Basic auth on every page, API call, and the websocket
+- only allows the ComfyUI routes the UI uses (`system_stats`, `upload/image`,
+  `prompt`, `history/<id>`, `queue`, `view`, `interrupt`), so everything else
+  (Manager, settings, model downloads) returns 403
+- rebuilds every `/prompt` from `public/workflow.api.json`, so visitors can set
+  only the two images, the prompt text, and the seed
+- refuses new jobs once `DEMO_MAX_QUEUE` are already queued (HTTP 429)
+
+Without `DEMO_PASSWORD`, `node server.js` behaves exactly as before.
+
+**Secrets:** `.env` is gitignored, so never commit it and never hard-code keys
+or passwords in code. `.env.example` holds placeholders only.
 
 ## How it maps to the workflow
 
