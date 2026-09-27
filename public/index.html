@@ -21,6 +21,8 @@
     --danger: #b42318;
     --danger-soft: rgba(180, 35, 24, 0.07);
     --ok: #2c8a4f;
+    --warn: #8a5300;
+    --warn-soft: rgba(138, 83, 0, 0.08);
     --overlay: rgba(20, 21, 24, 0.72);
     --overlay-ink: #ffffff;
 
@@ -48,6 +50,8 @@
       --danger: #ff8b80;
       --danger-soft: rgba(255, 139, 128, 0.10);
       --ok: #58c07f;
+      --warn: #f5b454;
+      --warn-soft: rgba(245, 180, 84, 0.10);
       --overlay: rgba(8, 9, 11, 0.72);
       --overlay-ink: #f2f3f5;
     }
@@ -280,6 +284,17 @@
     display: none;
   }
   .drop.filled .filename { display: block; }
+  .slot-warn {
+    margin: 8px 0 0;
+    padding: 8px 10px;
+    border: 1px solid var(--warn);
+    border-radius: var(--r-sm);
+    background: var(--warn-soft);
+    color: var(--warn);
+    font-size: 12.5px;
+    line-height: 1.4;
+  }
+  .slot-warn[hidden] { display: none; }
 
   /* ---------- prompt ---------- */
   textarea {
@@ -583,7 +598,7 @@
 <main class="wrap">
   <div class="intro">
     <h1>Virtual Try-On Studio</h1>
-    <p class="lede">Upload a person and a piece of clothing, describe the edit you want, then generate the try-on.</p>
+    <p class="lede">Upload a person and an item to try on — clothing or an accessory — describe the edit you want, then generate the try-on.</p>
   </div>
 
   <div class="grid">
@@ -604,6 +619,7 @@
         <button class="remove" type="button" aria-label="Remove subject image">&times;</button>
         <p class="filename" id="fileNameSubject"></p>
       </div>
+      <p class="slot-warn" id="warnSubject" role="status" aria-live="polite" hidden></p>
     </section>
 
     <!-- ATTRIBUTE -->
@@ -623,6 +639,7 @@
         <button class="remove" type="button" aria-label="Remove attribute image">&times;</button>
         <p class="filename" id="fileNameAttribute"></p>
       </div>
+      <p class="slot-warn" id="warnAttribute" role="status" aria-live="polite" hidden></p>
     </section>
   </div>
 
@@ -630,9 +647,9 @@
   <section class="field">
     <div class="field-head">
       <h2><label for="prompt">Prompt</label></h2>
-      <p class="sub">Describe how the subject and the attribute should be combined</p>
+      <p class="sub">Name the item and where it goes — the model follows your words more than the pictures</p>
     </div>
-    <textarea id="prompt" placeholder="e.g. Put the jacket from image 2 onto the person in image 1, keeping their pose and the background unchanged.">Dress the person in image 1 with the clothing from image 2. Keep the person's face, pose, body and background unchanged. Make the garment fit naturally with realistic folds, shadows and lighting.</textarea>
+    <textarea id="prompt" placeholder="e.g. Put the blue cap from image 2 on the man's head in image 1, brim facing forward. Keep his face, shirt and the background the same.">Put the item from image 2 on the person in image 1, worn where it naturally belongs — a hat on the head, glasses on the face, a top on the torso. Keep the person's identity, expression, pose and the background the same, and match the lighting and shadows of image 1.</textarea>
   </section>
 
   <div class="options">
@@ -713,6 +730,11 @@ const SAVE_NODE = "94";
 // above 1 MP so ComfyUI still does the final scale itself.
 const RESIZE_ABOVE_PIXELS = 2_200_000;
 const RESIZE_TARGET_PIXELS = 1_600_000;
+
+// The workflow upscales both inputs to ~1 MP (1024×1024). A thumbnail-sized
+// source has too little detail to place an item on, so flag it — but don't
+// block Generate; a weak result is still the user's call.
+const MIN_SHORT_SIDE = 512;
 
 /* ---------- DOM ---------- */
 const $ = (id) => document.getElementById(id);
@@ -942,6 +964,7 @@ function setFile(slot, file) {
   img.onload = () => {
     s.dims = { w: img.naturalWidth, h: img.naturalHeight };
     updateCaption(slot);
+    refresh();
   };
   img.src = url;
 
@@ -971,6 +994,7 @@ function clearFile(slot) {
 function updateCaption(slot) {
   const s = slots[slot];
   const node = $("fileName" + cap(slot));
+  updateWarning(slot);
   if (!s.file) { setText(node, ""); return; }
   let text = s.file.name;
   if (s.dims) {
@@ -979,6 +1003,22 @@ function updateCaption(slot) {
     if (plan) text += " → " + plan.w + "×" + plan.h;
   }
   setText(node, text);
+}
+
+function isSmall(slot) {
+  const d = slots[slot].dims;
+  return Boolean(slots[slot].file && d && Math.min(d.w, d.h) < MIN_SHORT_SIDE);
+}
+
+function updateWarning(slot) {
+  const node = $("warn" + cap(slot));
+  const small = isSmall(slot);
+  node.hidden = !small;
+  if (small) {
+    const d = slots[slot].dims;
+    setText(node, "This image is only " + d.w + "×" + d.h + " px. It gets enlarged to 1024×1024, " +
+      "so expect a blurry or inaccurate result. Use at least " + MIN_SHORT_SIDE + " px on the shorter side.");
+  } else setText(node, "");
 }
 
 function resizePlan(w, h) {
@@ -1016,6 +1056,9 @@ function helpText(hasFiles) {
   if (busy) return "Generating — inputs are locked until this run finishes. Use “Stop run” to cancel.";
   if (comfyOnline === false) return "ComfyUI is offline, so Generate is disabled. Start ComfyUI, then try again.";
   if (!hasFiles) return "Upload both images to enable Generate.";
+  const small = Object.keys(slots).filter(isSmall);
+  if (small.length) return "Ready, but the " + small.join(" and ") + " image" +
+    (small.length > 1 ? "s are" : " is") + " small — the result may be poor.";
   if (hasResult) return "Ready. Generate again for a new take — same files, new seed.";
   return "Ready. Click Generate.";
 }
