@@ -121,3 +121,19 @@ That's a ComfyUI/model issue, not the frontend. Options: start ComfyUI with
 `--cpu` (what this project uses; about 11 minutes per image on an M-series
 Mac), or swap in non-fp8 / GGUF weights in the Load nodes. The frontend
 surfaces whatever error ComfyUI returns.
+
+## Built with Claude Code
+
+The app was built with [Claude Code](https://claude.com/claude-code), and the
+project setup for it is checked in under `.claude/`:
+
+| Path | What it does |
+| --- | --- |
+| `.claude/CLAUDE.md` | project brief: architecture, the workflow node contract, the CPU-mode constraint |
+| `.claude/agents/` | subagents: `frontend` (UI in `public/index.html`), `debugger` (root-causing failed runs), `ux-laws-review`, `python-backend` |
+| `.claude/skills/comfy-docs/` | offline search of the ComfyUI docs, so API answers come from the source |
+| `.claude/skills/laws-of-ux/` | offline search of [Laws of UX](https://lawsofux.com), used to justify UI decisions |
+| `.claude/hooks/` | two `Stop` hooks that log every turn to `.claude/logs/` (gitignored) |
+| `.claude/settings.json` | shared permission allowlist and the hook registration |
+
+`.claude/settings.local.json` and `.claude/logs/` stay local and are gitignored.
