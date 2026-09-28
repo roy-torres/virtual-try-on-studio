@@ -3,8 +3,46 @@
 A small frontend for the **Flux.2 Klein image-edit** ComfyUI workflow
 (`2+flux2_klein_image_edit_4b_distilled_api.json`).
 
-Upload two images (e.g. a person + a garment), type a prompt, hit **Generate**,
-and the result is shown inline.
+Upload two images (a person, and a piece of clothing or an accessory), type a
+short prompt, hit **Generate**, and the result is shown inline.
+
+**Demo video:** <https://vimeo.com/1230764928>
+
+## How to use
+
+1. **Subject**: upload a photo of the person. Use at least 512 px on the shorter
+   side, with some space above the head if you're adding a hat. Smaller photos
+   still work, but the app warns you because the result will be blurry.
+2. **Attribute**: upload the item to try on (a cap, glasses, a shirt, …).
+3. **Prompt**: write **one short sentence describing the finished picture**,
+   for example *"The model is wearing the hat."*
+4. Click **Generate** and leave the tab open. The status dot shows whether
+   ComfyUI is reachable, and the run panel shows progress, elapsed time and the
+   seed. **Stop run** cancels.
+5. Optional: tick **Lock seed** to reproduce a result, or keep **Downscale large
+   uploads** on to send big photos faster (the workflow resizes to ~1 MP anyway).
+
+### Prompt tips (learned from testing)
+
+The workflow uses a small, fast 4-step model, and it's sensitive to how the
+prompt is worded:
+
+| Prompt | What happened |
+| --- | --- |
+| *"The model is wearing the hat."* | ✅ cap placed correctly |
+| Long instructions: *"Dress the person in image 1 with the clothing from image 2. Keep the face, pose… unchanged."* | ❌ nothing changed, or the logo landed on the forehead |
+| Listing examples: *"…a hat on the head, glasses on the face…"* | ❌ added the hat **and** glasses |
+| Generic: *"Put the item from image 2 on the person…"* | ❌ no hat, logo on the neck |
+
+Say what the item is, describe the end result, and skip the "keep X unchanged"
+clauses. That's why the prompt box starts empty instead of pre-filled.
+
+## Requirements
+
+- Node.js 18+ (22.9+ for the demo-mode command below); no npm packages
+- A running [ComfyUI](https://github.com/comfyanonymous/ComfyUI) with the Flux.2
+  Klein 4B models installed (`flux-2-klein-4b-fp8.safetensors`,
+  `qwen_3_4b.safetensors`)
 
 ## Run
 
@@ -66,7 +104,7 @@ or passwords in code. `.env.example` holds placeholders only.
 | SUBJECT image     | `76` – `LoadImage`                     |
 | ATTRIBUTE image   | `81` – `LoadImage`                     |
 | Prompt box        | `92:109` – `CLIPTextEncode` (`text`)   |
-| (each run)        | `92:106` – `RandomNoise` seed randomised |
+| Seed (random, or locked) | `92:106` – `RandomNoise` (`noise_seed`) |
 | Output image      | `94` – `SaveImage`                     |
 
 `public/workflow.api.json` is a copy of the API-format workflow; edit it there
@@ -80,5 +118,6 @@ The bundled workflow loads fp8 weights (`flux-2-klein-4b-fp8.safetensors`,
 > Trying to convert Float8_e4m3fn to the MPS backend but it does not have support for that dtype.
 
 That's a ComfyUI/model issue, not the frontend. Options: start ComfyUI with
-`--cpu`, or swap in non-fp8 / bf16 weights in the Load nodes. The frontend
+`--cpu` (what this project uses; about 11 minutes per image on an M-series
+Mac), or swap in non-fp8 / GGUF weights in the Load nodes. The frontend
 surfaces whatever error ComfyUI returns.
