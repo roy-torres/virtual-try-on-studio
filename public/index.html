@@ -647,9 +647,9 @@
   <section class="field">
     <div class="field-head">
       <h2><label for="prompt">Prompt</label></h2>
-      <p class="sub">Name the item and where it goes — the model follows your words more than the pictures</p>
+      <p class="sub">Keep it short and describe the finished picture — long instructions tend to change nothing</p>
     </div>
-    <textarea id="prompt" placeholder="e.g. Put the blue cap from image 2 on the man's head in image 1, brim facing forward. Keep his face, shirt and the background the same.">Put the item from image 2 on the person in image 1, worn where it naturally belongs — a hat on the head, glasses on the face, a top on the torso. Keep the person's identity, expression, pose and the background the same, and match the lighting and shadows of image 1.</textarea>
+    <textarea id="prompt" placeholder="e.g. The model is wearing the cap."></textarea>
   </section>
 
   <div class="options">
@@ -1035,10 +1035,18 @@ el.downscale.addEventListener("change", () => {
 });
 el.lockSeed.addEventListener("change", refresh);
 
+/* ---------- Prompt ---------- */
+// The distilled 4-step model works best with a short sentence describing the
+// finished picture ("The person is wearing the hat."). Long instruction-style
+// prompts full of "keep X unchanged" made it change nothing or misplace the
+// item, so there is no prefilled default — an empty prompt keeps Generate off.
+el.prompt.addEventListener("input", refresh);
+
 /* ---------- Enabled state + help copy ---------- */
 function refresh() {
   const hasFiles = Boolean(slots.subject.file && slots.attribute.file);
-  el.generateBtn.disabled = !(hasFiles && !busy && comfyOnline !== false);
+  const hasPrompt = el.prompt.value.trim() !== "";
+  el.generateBtn.disabled = !(hasFiles && hasPrompt && !busy && comfyOnline !== false);
   el.resetBtn.disabled = busy;
   el.lockSeed.disabled = busy;
   el.downscale.disabled = busy;
@@ -1049,13 +1057,14 @@ function refresh() {
     node.querySelector("input[type=file]").disabled = busy;
     node.querySelector(".remove").disabled = busy;
   }
-  setText(el.help, helpText(hasFiles));
+  setText(el.help, helpText(hasFiles, hasPrompt));
 }
 
-function helpText(hasFiles) {
+function helpText(hasFiles, hasPrompt) {
   if (busy) return "Generating — inputs are locked until this run finishes. Use “Stop run” to cancel.";
   if (comfyOnline === false) return "ComfyUI is offline, so Generate is disabled. Start ComfyUI, then try again.";
   if (!hasFiles) return "Upload both images to enable Generate.";
+  if (!hasPrompt) return "Type a prompt to enable Generate.";
   const small = Object.keys(slots).filter(isSmall);
   if (small.length) return "Ready, but the " + small.join(" and ") + " image" +
     (small.length > 1 ? "s are" : " is") + " small — the result may be poor.";
